@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {useState, useEffect, useCallback} from 'react';
 import PropTypes from 'prop-types';
 
 import {
@@ -23,115 +23,85 @@ const DEFAULT_TIME_LABELS = {
   s: 'Seconds',
 };
 
-class CountDown extends React.Component {
-  static propTypes = {
-    id: PropTypes.string,
-    digitStyle: PropTypes.object,
-    digitTxtStyle: PropTypes.object,
-    timeLabelStyle: PropTypes.object,
-    separatorStyle: PropTypes.object,
-    timeToShow: PropTypes.array,
-    showSeparator: PropTypes.bool,
-    size: PropTypes.number,
-    until: PropTypes.number,
-    onChange: PropTypes.func,
-    onPress: PropTypes.func,
-    onFinish: PropTypes.func,
-  };
+const CountDown = (props) => {
+  
+  const [until, setUntil] = useState(Math.max(props.until, 0))
+  const [lastUntil, setLastUntil] = useState(null)
+  const [wentBackgroundAt, setWentBackgroundAt] = useState(null)
 
-  state = {
-    until: Math.max(this.props.until, 0),
-    lastUntil: null,
-    wentBackgroundAt: null,
-  };
+  // state = {
+  //   until: Math.max(this.props.until, 0),
+  //   lastUntil: null,
+  //   wentBackgroundAt: null,
+  //  eventListener: null, // NEW LINE
+  // };
 
-  constructor(props) {
-    super(props);
-    this.timer = setInterval(this.updateTimer, 1000);
-  }
-
-  componentDidMount() {
-    AppState.addEventListener('change', this._handleAppStateChange);
-  }
-
-  componentWillUnmount() {
-    clearInterval(this.timer);
-    AppState.removeEventListener('change', this._handleAppStateChange);
-  }
-
-  componentDidUpdate(prevProps, prevState) {
-    if (this.props.until !== prevProps.until || this.props.id !== prevProps.id) {
-      this.setState({
-        lastUntil: prevState.until,
-        until: Math.max(prevProps.until, 0)
-      });
-    }
-  }
-  // componentWillReceiveProps(nextProps) {
-  //   if (this.props.until !== nextProps.until || this.props.id !== nextProps.id) {
-  //     this.setState({
-  //       lastUntil: this.state.until,
-  //       until: Math.max(nextProps.until, 0)
-  //     });
-  //   }
+  // constructor(props) {
+  //   super(props);
+  //   this.timer = 
   // }
 
-  _handleAppStateChange = currentAppState => {
-    const {until, wentBackgroundAt} = this.state;
-    if (currentAppState === 'active' && wentBackgroundAt && this.props.running) {
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', _handleAppStateChange); // MODIFIED
+    const timer = setInterval(updateTimer, 1000);
+    return () => {
+      subscription.remove();
+      clearInterval(timer);
+    }
+  }, [])
+
+
+  const _handleAppStateChange = useCallback(currentAppState => {
+    if (currentAppState === 'active' && wentBackgroundAt && props.running) {
       const diff = (Date.now() - wentBackgroundAt) / 1000.0;
-      this.setState({
-        lastUntil: until,
-        until: Math.max(0, until - diff)
-      });
+      setLastUntil(until)
+      setUntil(Math.max(0, until - diff))
     }
     if (currentAppState === 'background') {
-      this.setState({wentBackgroundAt: Date.now()});
+      setWentBackgroundAt(Date.now())
     }
-  }
+  },[until, wentBackgroundAt])
 
-  getTimeLeft = () => {
-    const {until} = this.state;
+  const getTimeLeft = useCallback(() => {
     return {
       seconds: until % 60,
       minutes: parseInt(until / 60, 10) % 60,
       hours: parseInt(until / (60 * 60), 10) % 24,
       days: parseInt(until / (60 * 60 * 24), 10),
     };
-  };
+  }, [until]);
 
-  updateTimer = () => {
+  const updateTimer = useCallback(() => {
     // Don't fetch these values here, because their value might be changed
     // in another thread
     // const {lastUntil, until} = this.state;
 
-    if (this.state.lastUntil === this.state.until || !this.props.running) {
+    if (lastUntil === until || !props.running) {
       return;
     }
-    if (this.state.until === 1 || (this.state.until === 0 && this.state.lastUntil !== 1)) {
-      if (this.props.onFinish) {
-        this.props.onFinish();
+    if (until === 1 || (until === 0 && lastUntil !== 1)) {
+      if (props.onFinish) {
+        props.onFinish();
       }
-      if (this.props.onChange) {
-        this.props.onChange(this.state.until);
+      if (props.onChange) {
+        props.onChange(until);
       }
     }
 
-    if (this.state.until === 0) {
-      this.setState({lastUntil: 0, until: 0});
+    if (until === 0) {
+      setUntil(0)
+      setLastUntil(0)
     } else {
-      if (this.props.onChange) {
-        this.props.onChange(this.state.until);
+      if (props.onChange) {
+        props.onChange(until);
       }
-      this.setState({
-        lastUntil: this.state.until,
-        until: Math.max(0, this.state.until - 1)
-      });
+      setUntil(Math.max(0, until - 1))
+      setLastUntil(until)
     }
-  };
+  }, [until, lastUntil]);
 
-  renderDigit = (d) => {
-    const {digitStyle, digitTxtStyle, size} = this.props;
+  const renderDigit = (d) => {
+    const {digitStyle, digitTxtStyle, size} = props;
     return (
       <View style={[
         styles.digitCont,        
@@ -149,8 +119,8 @@ class CountDown extends React.Component {
     );
   };
 
-  renderLabel = label => {
-    const {timeLabelStyle, size} = this.props;
+  const renderLabel = label => {
+    const {timeLabelStyle, size} = props;
     if (label) {
       return (
         <Text style={[
@@ -164,19 +134,19 @@ class CountDown extends React.Component {
     }
   };
 
-  renderDoubleDigits = (label, digits) => {
+  const renderDoubleDigits = (label, digits) => {
     return (
       <View style={styles.doubleDigitCont}>
         <View style={styles.timeInnerCont}>
-          {this.renderDigit(digits)}
+          {renderDigit(digits)}
         </View>
-        {this.renderLabel(label)}
+        {renderLabel(label)}
       </View>
     );
   };
 
-  renderSeparator = () => {
-    const {separatorStyle, size} = this.props;
+  const renderSeparator = () => {
+    const {separatorStyle, size} = props;
     return (
       <View style={{justifyContent: 'center', alignItems: 'center'}}>
         <Text style={[
@@ -190,36 +160,35 @@ class CountDown extends React.Component {
     );
   };
 
-  renderCountDown = () => {
-    const {timeToShow, timeLabels, showSeparator} = this.props;
-    const {until} = this.state;
-    const {days, hours, minutes, seconds} = this.getTimeLeft();
+  const renderCountDown = () => {
+    const {timeToShow, timeLabels, showSeparator} = props;
+    const {days, hours, minutes, seconds} = getTimeLeft();
     const newTime = sprintf('%02d:%02d:%02d:%02d', days, hours, minutes, seconds).split(':');
-    const Component = this.props.onPress ? TouchableOpacity : View;
+    const Component = props.onPress ? TouchableOpacity : View;
 
     return (
       <Component
         style={styles.timeCont}
-        onPress={this.props.onPress}
+        onPress={props.onPress}
       >
-        {timeToShow.includes('D') ? this.renderDoubleDigits(timeLabels.d, newTime[0]) : null}
-        {showSeparator && timeToShow.includes('D') && timeToShow.includes('H') ? this.renderSeparator() : null}
-        {timeToShow.includes('H') ? this.renderDoubleDigits(timeLabels.h, newTime[1]) : null}
-        {showSeparator && timeToShow.includes('H') && timeToShow.includes('M') ? this.renderSeparator() : null}
-        {timeToShow.includes('M') ? this.renderDoubleDigits(timeLabels.m, newTime[2]) : null}
-        {showSeparator && timeToShow.includes('M') && timeToShow.includes('S') ? this.renderSeparator() : null}
-        {timeToShow.includes('S') ? this.renderDoubleDigits(timeLabels.s, newTime[3]) : null}
+        {timeToShow.includes('D') ? renderDoubleDigits(timeLabels.d, newTime[0]) : null}
+        {showSeparator && timeToShow.includes('D') && timeToShow.includes('H') ? renderSeparator() : null}
+        {timeToShow.includes('H') ? renderDoubleDigits(timeLabels.h, newTime[1]) : null}
+        {showSeparator && timeToShow.includes('H') && timeToShow.includes('M') ? renderSeparator() : null}
+        {timeToShow.includes('M') ? renderDoubleDigits(timeLabels.m, newTime[2]) : null}
+        {showSeparator && timeToShow.includes('M') && timeToShow.includes('S') ? renderSeparator() : null}
+        {timeToShow.includes('S') ? renderDoubleDigits(timeLabels.s, newTime[3]) : null}
       </Component>
     );
   };
 
-  render() {
+
     return (
       <View style={this.props.style}>
-        {this.renderCountDown()}
+        {renderCountDown()}
       </View>
     );
-  }
+  
 }
 
 CountDown.defaultProps = {
@@ -270,6 +239,21 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+
+CountDown.propTypes = {
+  id: PropTypes.string,
+  digitStyle: PropTypes.object,
+  digitTxtStyle: PropTypes.object,
+  timeLabelStyle: PropTypes.object,
+  separatorStyle: PropTypes.object,
+  timeToShow: PropTypes.array,
+  showSeparator: PropTypes.bool,
+  size: PropTypes.number,
+  until: PropTypes.number,
+  onChange: PropTypes.func,
+  onPress: PropTypes.func,
+  onFinish: PropTypes.func,
+};
 
 export default CountDown;
 export { CountDown };
