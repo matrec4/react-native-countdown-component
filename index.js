@@ -23,32 +23,29 @@ const DEFAULT_TIME_LABELS = {
   s: 'Seconds',
 };
 
+let timer;
+
 const CountDown = (props) => {
   
   const [until, setUntil] = useState(Math.max(props.until, 0))
   const [lastUntil, setLastUntil] = useState(null)
   const [wentBackgroundAt, setWentBackgroundAt] = useState(null)
 
-  // state = {
-  //   until: Math.max(this.props.until, 0),
-  //   lastUntil: null,
-  //   wentBackgroundAt: null,
-  //  eventListener: null, // NEW LINE
-  // };
-
-  // constructor(props) {
-  //   super(props);
-  //   this.timer = 
-  // }
-
   useEffect(() => {
     const subscription = AppState.addEventListener('change', _handleAppStateChange); // MODIFIED
-    const timer = setInterval(updateTimer, 1000);
     return () => {
       subscription.remove();
-      clearInterval(timer);
     }
-  }, [])
+  }, [_handleAppStateChange])
+
+  useEffect( () => {
+    timer = setInterval(updateTimer, 1000);
+    return () => {
+      if(timer){
+        clearInterval(timer);
+      }
+    }
+  }, [until, props])
 
 
   const _handleAppStateChange = useCallback(currentAppState => {
@@ -98,7 +95,7 @@ const CountDown = (props) => {
       setUntil(Math.max(0, until - 1))
       setLastUntil(until)
     }
-  }, [until, lastUntil]);
+  }, [until, lastUntil, setUntil, setLastUntil, props]);
 
   const renderDigit = (d) => {
     const {digitStyle, digitTxtStyle, size} = props;
@@ -184,7 +181,7 @@ const CountDown = (props) => {
 
 
     return (
-      <View style={this.props.style}>
+      <View style={props.style}>
         {renderCountDown()}
       </View>
     );
